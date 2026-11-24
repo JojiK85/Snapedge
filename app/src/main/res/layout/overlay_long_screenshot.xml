@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/longShotPill"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:background="@drawable/bg_pill_dark"
+    android:elevation="16dp"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:paddingHorizontal="14dp"
+    android:paddingVertical="8dp">
+
+    <TextView
+        android:id="@+id/tvLongShotStatus"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Frames: 1"
+        android:textColor="@color/text_primary"
+        android:textSize="12sp"
+        android:textStyle="bold" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnCaptureNextFrame"
+        style="@style/Widget.Material3.Button.TonalButton"
+        android:layout_width="wrap_content"
+        android:layout_height="34dp"
+        android:layout_marginStart="8dp"
+        android:minWidth="0dp"
+        android:paddingHorizontal="10dp"
+        android:text="+ Capture"
+        android:textSize="11sp"
+        android:visibility="gone" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnFinishLongShot"
+        android:layout_width="wrap_content"
+        android:layout_height="34dp"
+        android:layout_marginStart="8dp"
+        android:minWidth="0dp"
+        android:paddingHorizontal="12dp"
+        android:text="Stitch"
+        android:textSize="11sp" />
+
+    <ImageButton
+        android:id="@+id/btnCancelLongShot"
+        android:layout_width="28dp"
+        android:layout_height="28dp"
+        android:layout_marginStart="6dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="Cancel"
+        android:padding="4dp"
+        android:src="@drawable/ic_close" />
+
+</LinearLayout>

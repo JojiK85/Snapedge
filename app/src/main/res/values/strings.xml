@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">SnapEdge</string>
+    <string name="widget_name">SnapEdge Quick Bar</string>
+    <string name="editor_title">Markup &amp; Redact</string>
+    <string name="accessibility_service_label">SnapEdge Auto-Scroll</string>
+    <string name="accessibility_service_description">Enables hands-free scrolling during Long Screenshot capture. SnapEdge does not read or transmit personal screen content.</string>
+
+    <string name="notif_channel_id">snapedge_service_channel</string>
+    <string name="notif_channel_name">SnapEdge Floating Sidebar</string>
+    <string name="notif_edge_title">SnapEdge Sidebar Active</string>
+    <string name="notif_edge_text">Swipe from the screen edge to Circle OCR or capture Long Screenshots.</string>
+    <string name="notif_capture_title">Screen Capture Ready</string>
+    <string name="notif_capture_text">Ready for instant Circle OCR &amp; Long Screenshots.</string>
+
+    <string name="action_circle_ocr">Circle OCR</string>
+    <string name="action_long_shot">Long Shot</string>
+    <string name="action_full_shot">Quick Shot</string>
+    <string name="action_pin_note">Pin Clip</string>
+    <string name="action_open_vault">Vault</string>
+</resources>
