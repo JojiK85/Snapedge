@@ -79,6 +79,8 @@ class ScreenCaptureService : Service() {
             .setSmallIcon(R.drawable.ic_app_logo)
             .setContentTitle(getString(R.string.notif_capture_title))
             .setContentText(getString(R.string.notif_capture_text))
+            .setPriority(NotificationCompat.PRIORITY_MIN)
+            .setSilent(true)
             .setContentIntent(openIntent)
             .setOngoing(true)
             .build()

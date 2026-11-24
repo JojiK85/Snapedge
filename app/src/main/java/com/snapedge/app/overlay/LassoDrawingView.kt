@@ -12,12 +12,14 @@ import android.graphics.Shader
 import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.View
+import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
 
 /**
- * Google Circle-to-Search style interactive selection canvas over a frozen screen capture.
- * Renders a glowing gradient lasso while drawing, then dims outside the crop with crisp corner brackets.
+ * Google Circle-to-Search style selection canvas.
+ * Users circle anything on screen; on release it snaps to a resizable square/rectangle crop box
+ * with 4 draggable corner handles and drag-to-move support.
  */
 class LassoDrawingView @JvmOverloads constructor(
     context: Context,
@@ -28,6 +30,10 @@ class LassoDrawingView @JvmOverloads constructor(
         FREEHAND, BOX
     }
 
+    private enum class DragHandle {
+        NONE, TOP_LEFT, TOP_RIGHT, BOTTOM_LEFT, BOTTOM_RIGHT, MOVE_BOX
+    }
+
     var mode: SelectionMode = SelectionMode.FREEHAND
     var onSelectionComplete: ((RectF) -> Unit)? = null
 
@@ -36,6 +42,8 @@ class LassoDrawingView @JvmOverloads constructor(
     private var startY = 0f
     private var currentX = 0f
     private var currentY = 0f
+    private var lastTouchX = 0f
+    private var lastTouchY = 0f
 
     private var minX = Float.MAX_VALUE
     private var minY = Float.MAX_VALUE
@@ -81,15 +89,30 @@ class LassoDrawingView @JvmOverloads constructor(
         strokeJoin = Paint.Join.ROUND
     }
 
-    private val cropOutlinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.argb(140, 255, 255, 255)
+    private val handleDotFillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.WHITE
+        style = Paint.Style.FILL
+    }
+
+    private val handleDotStrokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.parseColor("#22D3EE")
         style = Paint.Style.STROKE
-        strokeWidth = 2f
+        strokeWidth = 4f
+    }
+
+    private val cropOutlinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.argb(170, 255, 255, 255)
+        style = Paint.Style.STROKE
+        strokeWidth = 2.5f
     }
 
     private val activeBox = RectF()
     private var hasSelection = false
-    private var isDrawing = false
+    private var isDrawingNew = false
+    private var activeHandle = DragHandle.NONE
+
+    private val handleTouchRadiusPx = 56f
+    private val minBoxSizePx = 56f
 
     init {
         setLayerType(LAYER_TYPE_SOFTWARE, null)
@@ -122,7 +145,8 @@ class LassoDrawingView @JvmOverloads constructor(
         strokePath.reset()
         activeBox.setEmpty()
         hasSelection = false
-        isDrawing = false
+        isDrawingNew = false
+        activeHandle = DragHandle.NONE
         invalidate()
     }
 
@@ -135,41 +159,67 @@ class LassoDrawingView @JvmOverloads constructor(
             return
         }
 
-        if (isDrawing) {
+        if (isDrawingNew) {
             canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), softAmbientPaint)
             if (mode == SelectionMode.BOX) {
-                canvas.drawRoundRect(activeBox, 24f, 24f, glowPaint)
-                canvas.drawRoundRect(activeBox, 24f, 24f, strokePaint)
+                canvas.drawRoundRect(activeBox, 20f, 20f, glowPaint)
+                canvas.drawRoundRect(activeBox, 20f, 20f, strokePaint)
             } else {
                 canvas.drawPath(strokePath, glowPaint)
                 canvas.drawPath(strokePath, strokePaint)
             }
         } else {
-            // Google Circle-to-Search style highlight: keep selected crop bright, dim outside
             canvas.save()
             canvas.clipOutRect(activeBox)
             canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), outsideCropDimPaint)
             canvas.restore()
 
-            canvas.drawRoundRect(activeBox, 18f, 18f, cropOutlinePaint)
-            drawCornerBrackets(canvas, activeBox)
+            canvas.drawRect(activeBox, cropOutlinePaint)
+            drawCornerBracketsAndHandles(canvas, activeBox)
         }
     }
 
-    private fun drawCornerBrackets(canvas: Canvas, r: RectF) {
-        val len = min(36f, min(r.width(), r.height()) * 0.3f).coerceAtLeast(14f)
-        // Top-left
+    private fun drawCornerBracketsAndHandles(canvas: Canvas, r: RectF) {
+        val len = min(32f, min(r.width(), r.height()) * 0.28f).coerceAtLeast(12f)
+        // Corner brackets
         canvas.drawLine(r.left, r.top + len, r.left, r.top, cornerBracketPaint)
         canvas.drawLine(r.left, r.top, r.left + len, r.top, cornerBracketPaint)
-        // Top-right
         canvas.drawLine(r.right - len, r.top, r.right, r.top, cornerBracketPaint)
         canvas.drawLine(r.right, r.top, r.right, r.top + len, cornerBracketPaint)
-        // Bottom-left
         canvas.drawLine(r.left, r.bottom - len, r.left, r.bottom, cornerBracketPaint)
         canvas.drawLine(r.left, r.bottom, r.left + len, r.bottom, cornerBracketPaint)
-        // Bottom-right
         canvas.drawLine(r.right - len, r.bottom, r.right, r.bottom, cornerBracketPaint)
         canvas.drawLine(r.right, r.bottom, r.right, r.bottom - len, cornerBracketPaint)
+
+        // Draggable resize dots at all 4 corners
+        val dotRadius = 11f
+        val corners = arrayOf(
+            r.left to r.top,
+            r.right to r.top,
+            r.left to r.bottom,
+            r.right to r.bottom
+        )
+        for ((cx, cy) in corners) {
+            canvas.drawCircle(cx, cy, dotRadius, handleDotFillPaint)
+            canvas.drawCircle(cx, cy, dotRadius, handleDotStrokePaint)
+        }
+    }
+
+    private fun hitTestHandle(x: Float, y: Float): DragHandle {
+        if (!hasSelection || isDrawingNew) return DragHandle.NONE
+        val corners = listOf(
+            DragHandle.TOP_LEFT to (activeBox.left to activeBox.top),
+            DragHandle.TOP_RIGHT to (activeBox.right to activeBox.top),
+            DragHandle.BOTTOM_LEFT to (activeBox.left to activeBox.bottom),
+            DragHandle.BOTTOM_RIGHT to (activeBox.right to activeBox.bottom)
+        )
+        for ((handle, pt) in corners) {
+            if (hypot((x - pt.first).toDouble(), (y - pt.second).toDouble()) <= handleTouchRadiusPx) {
+                return handle
+            }
+        }
+        if (activeBox.contains(x, y)) return DragHandle.MOVE_BOX
+        return DragHandle.NONE
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
@@ -178,8 +228,18 @@ class LassoDrawingView @JvmOverloads constructor(
 
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
+                val hit = hitTestHandle(x, y)
+                if (hit != DragHandle.NONE) {
+                    activeHandle = hit
+                    lastTouchX = x
+                    lastTouchY = y
+                    return true
+                }
+
+                // Start a fresh circle / box selection
+                activeHandle = DragHandle.NONE
                 hasSelection = true
-                isDrawing = true
+                isDrawingNew = true
                 startX = x
                 startY = y
                 currentX = x
@@ -196,6 +256,12 @@ class LassoDrawingView @JvmOverloads constructor(
             }
 
             MotionEvent.ACTION_MOVE -> {
+                if (activeHandle != DragHandle.NONE) {
+                    applyHandleDrag(x, y)
+                    invalidate()
+                    return true
+                }
+
                 if (mode == SelectionMode.BOX) {
                     activeBox.set(
                         min(startX, x),
@@ -219,15 +285,23 @@ class LassoDrawingView @JvmOverloads constructor(
             }
 
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                isDrawing = false
+                if (activeHandle != DragHandle.NONE) {
+                    applyHandleDrag(x, y)
+                    activeHandle = DragHandle.NONE
+                    invalidate()
+                    onSelectionComplete?.invoke(RectF(activeBox))
+                    return true
+                }
+
+                isDrawingNew = false
                 if (mode != SelectionMode.BOX) {
                     strokePath.lineTo(x, y)
                     activeBox.set(minX, minY, maxX, maxY)
                 }
 
-                // Expand tiny taps slightly (like tapping a word or icon in Circle to Search)
+                // Expand tiny taps into a neat square crop
                 if (activeBox.width() < 28f && activeBox.height() < 28f) {
-                    val pad = 80f
+                    val pad = 90f
                     activeBox.set(
                         (x - pad).coerceAtLeast(0f),
                         (y - pad).coerceAtLeast(0f),
@@ -241,5 +315,40 @@ class LassoDrawingView @JvmOverloads constructor(
             }
         }
         return super.onTouchEvent(event)
+    }
+
+    private fun applyHandleDrag(x: Float, y: Float) {
+        val w = width.toFloat()
+        val h = height.toFloat()
+        when (activeHandle) {
+            DragHandle.TOP_LEFT -> {
+                activeBox.left = x.coerceIn(0f, activeBox.right - minBoxSizePx)
+                activeBox.top = y.coerceIn(0f, activeBox.bottom - minBoxSizePx)
+            }
+            DragHandle.TOP_RIGHT -> {
+                activeBox.right = x.coerceIn(activeBox.left + minBoxSizePx, w)
+                activeBox.top = y.coerceIn(0f, activeBox.bottom - minBoxSizePx)
+            }
+            DragHandle.BOTTOM_LEFT -> {
+                activeBox.left = x.coerceIn(0f, activeBox.right - minBoxSizePx)
+                activeBox.bottom = y.coerceIn(activeBox.top + minBoxSizePx, h)
+            }
+            DragHandle.BOTTOM_RIGHT -> {
+                activeBox.right = x.coerceIn(activeBox.left + minBoxSizePx, w)
+                activeBox.bottom = y.coerceIn(activeBox.top + minBoxSizePx, h)
+            }
+            DragHandle.MOVE_BOX -> {
+                val dx = x - lastTouchX
+                val dy = y - lastTouchY
+                val boxW = activeBox.width()
+                val boxH = activeBox.height()
+                val newLeft = (activeBox.left + dx).coerceIn(0f, (w - boxW).coerceAtLeast(0f))
+                val newTop = (activeBox.top + dy).coerceIn(0f, (h - boxH).coerceAtLeast(0f))
+                activeBox.set(newLeft, newTop, newLeft + boxW, newTop + boxH)
+                lastTouchX = x
+                lastTouchY = y
+            }
+            DragHandle.NONE -> Unit
+        }
     }
 }

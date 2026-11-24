@@ -18,7 +18,7 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
-    <!-- Minimal Floating Mode & Quick Switch Pill -->
+    <!-- Minimal Floating Mode & Close Pill -->
     <LinearLayout
         android:id="@+id/lassoTopBar"
         android:layout_width="wrap_content"
@@ -42,17 +42,6 @@
             android:paddingHorizontal="8dp"
             android:text="Box Crop"
             android:textColor="@color/accent_glow"
-            android:textSize="11sp" />
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnSwitchToLongShot"
-            style="@style/Widget.Material3.Button.TextButton"
-            android:layout_width="wrap_content"
-            android:layout_height="32dp"
-            android:minWidth="0dp"
-            android:paddingHorizontal="8dp"
-            android:text="Long Shot"
-            android:textColor="@color/text_primary"
             android:textSize="11sp" />
 
         <ImageButton
@@ -94,8 +83,8 @@
 
                 <ImageView
                     android:id="@+id/ivCroppedPreview"
-                    android:layout_width="56dp"
-                    android:layout_height="56dp"
+                    android:layout_width="54dp"
+                    android:layout_height="54dp"
                     android:background="#22FFFFFF"
                     android:contentDescription="Cropped region"
                     android:scaleType="centerInside" />
@@ -120,7 +109,7 @@
                         android:id="@+id/tvSmartSummary"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Editable result below"
+                        android:text="Drag corners to resize square"
                         android:textColor="@color/text_secondary"
                         android:textSize="11sp" />
                 </LinearLayout>
@@ -132,6 +121,39 @@
                     android:background="?attr/selectableItemBackgroundBorderless"
                     android:contentDescription="Dismiss"
                     android:src="@drawable/ic_close" />
+            </LinearLayout>
+
+            <!-- Link / QR Prompt Banner -->
+            <LinearLayout
+                android:id="@+id/linkPromptRow"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:background="#2222D3EE"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingHorizontal="10dp"
+                android:paddingVertical="6dp"
+                android:visibility="gone">
+
+                <TextView
+                    android:id="@+id/tvLinkPrompt"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Link detected — Open with browser?"
+                    android:textColor="@color/text_primary"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnOpenBrowser"
+                    android:layout_width="wrap_content"
+                    android:layout_height="34dp"
+                    android:minWidth="0dp"
+                    android:paddingHorizontal="12dp"
+                    android:text="Open Browser"
+                    android:textSize="11sp" />
             </LinearLayout>
 
             <!-- Smart Entity Action Chips (OTP, Math, URL, Phone, QR) -->
@@ -157,7 +179,7 @@
                 android:layout_marginTop="8dp"
                 android:background="#1AFFFFFF"
                 android:gravity="top|start"
-                android:hint="No text detected in circled area"
+                android:hint="No text detected — drag corners to resize"
                 android:inputType="textMultiLine"
                 android:maxLines="6"
                 android:minLines="2"
@@ -186,16 +208,6 @@
                         android:textSize="12sp" />
 
                     <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btnOpenBrowser"
-                        style="@style/Widget.Material3.Button.TonalButton"
-                        android:layout_width="wrap_content"
-                        android:layout_height="38dp"
-                        android:layout_marginStart="6dp"
-                        android:text="Copy &amp; Open Link"
-                        android:textSize="12sp"
-                        android:visibility="gone" />
-
-                    <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnPinExtracted"
                         style="@style/Widget.Material3.Button.TonalButton"
                         android:layout_width="wrap_content"
@@ -210,7 +222,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="38dp"
                         android:layout_marginStart="6dp"
-                        android:text="Search / Translate"
+                        android:text="Search"
                         android:textSize="12sp" />
 
                     <com.google.android.material.button.MaterialButton
@@ -228,7 +240,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="38dp"
                         android:layout_marginStart="6dp"
-                        android:text="Markup Crop"
+                        android:text="Markup"
                         android:textSize="12sp" />
 
                     <com.google.android.material.button.MaterialButton

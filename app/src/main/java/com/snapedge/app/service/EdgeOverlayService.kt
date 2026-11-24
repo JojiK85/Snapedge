@@ -36,7 +36,6 @@ import com.snapedge.app.capture.ScreenCaptureHolder
 import com.snapedge.app.data.PreferencesManager
 import com.snapedge.app.model.EdgeSide
 import com.snapedge.app.overlay.LassoCaptureOverlay
-import com.snapedge.app.overlay.LongScreenshotOverlay
 import com.snapedge.app.overlay.PinnedFloatingWindow
 import com.snapedge.app.ui.MainActivity
 import com.snapedge.app.ui.MarkupEditorActivity
@@ -91,7 +90,6 @@ class EdgeOverlayService : Service() {
         when (intent?.action) {
             ACTION_REFRESH_CONFIG -> applyEdgeHandleConfig()
             ACTION_CIRCLE_OCR -> triggerCircleOcr()
-            ACTION_LONG_SHOT -> triggerLongScreenshot()
             ACTION_QUICK_SHOT -> triggerQuickFullShot()
             ACTION_STOP -> stopSelf()
         }
@@ -117,6 +115,8 @@ class EdgeOverlayService : Service() {
             .setSmallIcon(R.drawable.ic_app_logo)
             .setContentTitle(getString(R.string.notif_edge_title))
             .setContentText(getString(R.string.notif_edge_text))
+            .setPriority(NotificationCompat.PRIORITY_MIN)
+            .setSilent(true)
             .setContentIntent(openIntent)
             .setOngoing(true)
             .build()
@@ -272,10 +272,6 @@ class EdgeOverlayService : Service() {
             removeSidebar()
             triggerCircleOcr()
         }
-        view.findViewById<View>(R.id.btnSidebarLongShot).setOnClickListener {
-            removeSidebar()
-            triggerLongScreenshot()
-        }
         view.findViewById<View>(R.id.btnSidebarQuickShot).setOnClickListener {
             removeSidebar()
             triggerQuickFullShot()
@@ -377,8 +373,7 @@ class EdgeOverlayService : Service() {
             if (screen == null) {
                 isCaptureOverlayActive = false
                 edgeHandleView?.visibility = View.VISIBLE
-                Toast.makeText(this@EdgeOverlayService, "Capture failed. Re-activating permission...", Toast.LENGTH_SHORT).show()
-                CapturePermissionActivity.launch(this@EdgeOverlayService, ACTION_CIRCLE_OCR)
+                Toast.makeText(this@EdgeOverlayService, "Could not grab screen — try again", Toast.LENGTH_SHORT).show()
                 return@launch
             }
 
@@ -386,33 +381,7 @@ class EdgeOverlayService : Service() {
                 context = this@EdgeOverlayService,
                 windowManager = windowManager,
                 screenBitmap = screen,
-                onSwitchToLongShot = {
-                    isCaptureOverlayActive = false
-                    triggerLongScreenshot()
-                },
                 onDismissed = {
-                    isCaptureOverlayActive = false
-                    edgeHandleView?.visibility = View.VISIBLE
-                }
-            ).show()
-        }
-    }
-
-    private fun triggerLongScreenshot() {
-        if (!ScreenCaptureHolder.isReady()) {
-            CapturePermissionActivity.launch(this, ACTION_LONG_SHOT)
-            return
-        }
-        if (isCaptureOverlayActive) return
-        isCaptureOverlayActive = true
-        edgeHandleView?.visibility = View.GONE
-
-        serviceScope.launch {
-            delay(140)
-            LongScreenshotOverlay(
-                context = this@EdgeOverlayService,
-                windowManager = windowManager,
-                onFinished = {
                     isCaptureOverlayActive = false
                     edgeHandleView?.visibility = View.VISIBLE
                 }
@@ -494,7 +463,6 @@ class EdgeOverlayService : Service() {
     companion object {
         const val ACTION_REFRESH_CONFIG = "com.snapedge.app.ACTION_REFRESH_CONFIG"
         const val ACTION_CIRCLE_OCR = "com.snapedge.app.ACTION_CIRCLE_OCR"
-        const val ACTION_LONG_SHOT = "com.snapedge.app.ACTION_LONG_SHOT"
         const val ACTION_QUICK_SHOT = "com.snapedge.app.ACTION_QUICK_SHOT"
         const val ACTION_STOP = "com.snapedge.app.ACTION_STOP"
         private const val NOTIFICATION_ID = 2001

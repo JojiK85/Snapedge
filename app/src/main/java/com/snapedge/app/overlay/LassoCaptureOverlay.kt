@@ -22,6 +22,7 @@ import android.widget.EditText
 import android.widget.HorizontalScrollView
 import android.widget.ImageButton
 import android.widget.ImageView
+import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.core.content.FileProvider
@@ -39,20 +40,20 @@ import com.snapedge.app.ui.MarkupEditorActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
 
 /**
- * Full-screen overlay showing the frozen screen capture where users can circle/lasso any region
- * to extract text, decode QR codes, compute math, copy OTPs, pin clips, or open the markup editor.
+ * Google Circle-to-Search style overlay: circle anything -> adjusts as a resizable square crop ->
+ * extracts text & QR codes, auto-copies to default clipboard, and prompts to open links in browser.
  */
 class LassoCaptureOverlay(
     private val context: Context,
     private val windowManager: WindowManager,
     private val screenBitmap: Bitmap,
-    private val onSwitchToLongShot: () -> Unit,
     private val onDismissed: () -> Unit
 ) {
     private val scope = CoroutineScope(Dispatchers.Main + Job())
@@ -70,20 +71,21 @@ class LassoCaptureOverlay(
         val ivFrozen = view.findViewById<ImageView>(R.id.ivFrozenScreen)
         val lassoView = view.findViewById<LassoDrawingView>(R.id.lassoDrawingView)
         val btnMode = view.findViewById<MaterialButton>(R.id.btnToggleLassoMode)
-        val btnLongShot = view.findViewById<MaterialButton>(R.id.btnSwitchToLongShot)
         val btnClose = view.findViewById<ImageButton>(R.id.btnCloseLasso)
 
         val cardResult = view.findViewById<MaterialCardView>(R.id.cardExtractionResult)
         val ivPreview = view.findViewById<ImageView>(R.id.ivCroppedPreview)
         val tvStatus = view.findViewById<TextView>(R.id.tvExtractionStatus)
         val tvSummary = view.findViewById<TextView>(R.id.tvSmartSummary)
+        val linkPromptRow = view.findViewById<LinearLayout>(R.id.linkPromptRow)
+        val tvLinkPrompt = view.findViewById<TextView>(R.id.tvLinkPrompt)
+        val btnOpenBrowser = view.findViewById<MaterialButton>(R.id.btnOpenBrowser)
         val scrollChips = view.findViewById<HorizontalScrollView>(R.id.scrollSmartChips)
         val chipGroup = view.findViewById<ChipGroup>(R.id.chipGroupSmartActions)
         val etExtracted = view.findViewById<EditText>(R.id.etExtractedText)
 
         val btnDismissResult = view.findViewById<ImageButton>(R.id.btnDismissResult)
         val btnCopy = view.findViewById<MaterialButton>(R.id.btnCopyExtracted)
-        val btnOpenBrowser = view.findViewById<MaterialButton>(R.id.btnOpenBrowser)
         val btnPin = view.findViewById<MaterialButton>(R.id.btnPinExtracted)
         val btnSearch = view.findViewById<MaterialButton>(R.id.btnSearchWeb)
         val btnSaveCrop = view.findViewById<MaterialButton>(R.id.btnSaveCropImage)
@@ -100,12 +102,8 @@ class LassoCaptureOverlay(
                 lassoView.mode = LassoDrawingView.SelectionMode.FREEHAND
                 btnMode.text = "Box Crop"
             }
+            cardResult.visibility = View.GONE
             lassoView.clearSelection()
-        }
-
-        btnLongShot.setOnClickListener {
-            dismiss()
-            onSwitchToLongShot()
         }
 
         btnClose.setOnClickListener { dismiss() }
@@ -119,6 +117,7 @@ class LassoCaptureOverlay(
                 false
             }
         }
+
         btnDismissResult.setOnClickListener {
             cardResult.visibility = View.GONE
             lassoView.clearSelection()
@@ -132,16 +131,21 @@ class LassoCaptureOverlay(
                 ivPreview = ivPreview,
                 tvStatus = tvStatus,
                 tvSummary = tvSummary,
+                linkPromptRow = linkPromptRow,
+                tvLinkPrompt = tvLinkPrompt,
                 scrollChips = scrollChips,
                 chipGroup = chipGroup,
-                etExtracted = etExtracted
+                etExtracted = etExtracted,
+                btnCopy = btnCopy
             )
         }
 
         etExtracted.doAfterTextChanged { editable ->
             val detectedUrl = SmartTextAnalyzer.extractFirstUrl(editable?.toString().orEmpty())
-            btnOpenBrowser.visibility = if (detectedUrl != null) View.VISIBLE else View.GONE
-            btnCopy.text = "Copy"
+            linkPromptRow.visibility = if (detectedUrl != null) View.VISIBLE else View.GONE
+            if (detectedUrl != null) {
+                tvLinkPrompt.text = "Link found — Open with browser?"
+            }
         }
 
         btnCopy.setOnClickListener {
@@ -149,13 +153,9 @@ class LassoCaptureOverlay(
             if (text.isNotEmpty()) {
                 copyToClipboard(text)
                 prefs.addClip(text, "Circle OCR")
-                val detectedUrl = SmartTextAnalyzer.extractFirstUrl(text)
-                if (detectedUrl != null) {
-                    btnCopy.text = "Copied ✓"
-                    tvSummary.text = "Copied! Tap Copy & Open Link to visit in browser"
-                    Toast.makeText(context, "Link copied! Tap Open Link to browse", Toast.LENGTH_SHORT).show()
-                } else {
-                    Toast.makeText(context, "Copied & saved to Vault", Toast.LENGTH_SHORT).show()
+                btnCopy.text = "Copied ✓"
+                Toast.makeText(context, "Copied to clipboard", Toast.LENGTH_SHORT).show()
+                if (SmartTextAnalyzer.extractFirstUrl(text) == null) {
                     dismiss()
                 }
             } else {
@@ -168,8 +168,7 @@ class LassoCaptureOverlay(
             val url = SmartTextAnalyzer.extractFirstUrl(text)
             if (url != null) {
                 copyToClipboard(url)
-                prefs.addClip(url, "Link OCR")
-                Toast.makeText(context, "Copied & opening in browser", Toast.LENGTH_SHORT).show()
+                prefs.addClip(url, "Link")
                 openUrl(url)
             }
         }
@@ -190,11 +189,10 @@ class LassoCaptureOverlay(
                 val directUrl = SmartTextAnalyzer.extractFirstUrl(query)
                 if (directUrl != null) {
                     copyToClipboard(directUrl)
-                    prefs.addClip(directUrl, "Link OCR")
+                    prefs.addClip(directUrl, "Link")
                     openUrl(directUrl)
                 } else {
-                    val url = "https://www.google.com/search?q=${Uri.encode(query)}"
-                    openUrl(url)
+                    openUrl("https://www.google.com/search?q=${Uri.encode(query)}")
                 }
             }
         }
@@ -242,7 +240,7 @@ class LassoCaptureOverlay(
                     putExtra(Intent.EXTRA_STREAM, uri)
                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 }
-                val chooser = Intent.createChooser(shareIntent, "Share circled crop").apply {
+                val chooser = Intent.createChooser(shareIntent, "Share crop").apply {
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 }
                 context.startActivity(chooser)
@@ -278,9 +276,12 @@ class LassoCaptureOverlay(
         ivPreview: ImageView,
         tvStatus: TextView,
         tvSummary: TextView,
+        linkPromptRow: LinearLayout,
+        tvLinkPrompt: TextView,
         scrollChips: HorizontalScrollView,
         chipGroup: ChipGroup,
-        etExtracted: EditText
+        etExtracted: EditText,
+        btnCopy: MaterialButton
     ) {
         val scaleX = screenBitmap.width.toFloat() / lassoView.width.coerceAtLeast(1)
         val scaleY = screenBitmap.height.toFloat() / lassoView.height.coerceAtLeast(1)
@@ -295,9 +296,11 @@ class LassoCaptureOverlay(
         croppedBitmap = crop
 
         ivPreview.setImageBitmap(crop)
-        tvStatus.text = "Extracting text & QR..."
-        tvSummary.text = "${crop.width}×${crop.height}px region"
+        tvStatus.text = "Scanning selection..."
+        tvSummary.text = "Drag corners to resize • ${crop.width}×${crop.height}px"
+        linkPromptRow.visibility = View.GONE
         etExtracted.setText("")
+        btnCopy.text = "Copy"
         chipGroup.removeAllViews()
         scrollChips.visibility = View.GONE
         cardResult.visibility = View.VISIBLE
@@ -307,16 +310,41 @@ class LassoCaptureOverlay(
                 SmartTextAnalyzer.analyzeBitmap(crop)
             }
 
+            val hasQr = result.qrPayloads.isNotEmpty()
+            val qrFirstUrl = result.qrPayloads.firstNotNullOfOrNull { SmartTextAnalyzer.extractFirstUrl(it) }
+            val textFirstUrl = SmartTextAnalyzer.extractFirstUrl(result.extractedText)
+            val detectedUrl = qrFirstUrl ?: textFirstUrl
+
             if (result.extractedText.isNotEmpty()) {
-                tvStatus.text = if (result.qrPayloads.isNotEmpty()) {
-                    "Text + QR Code Extracted"
-                } else {
-                    "Text Extracted"
-                }
+                // Auto-copy to default Android clipboard
+                copyToClipboard(result.extractedText)
+                prefs.addClip(result.extractedText, if (hasQr) "QR Code" else "Circle OCR")
                 etExtracted.setText(result.extractedText)
-                prefs.addClip(result.extractedText, "Circle OCR")
+                btnCopy.text = "Copied ✓"
+
+                if (hasQr) {
+                    tvStatus.text = "QR Code Decoded"
+                    tvSummary.text = if (qrFirstUrl != null) {
+                        "QR link copied to clipboard"
+                    } else {
+                        "QR info copied to clipboard"
+                    }
+                } else {
+                    tvStatus.text = "Text Extracted"
+                    tvSummary.text = "Copied to clipboard ✓ • Drag corners to resize"
+                }
+
+                if (detectedUrl != null) {
+                    linkPromptRow.visibility = View.VISIBLE
+                    tvLinkPrompt.text = if (qrFirstUrl != null) {
+                        "QR contains a link — Open with browser?"
+                    } else {
+                        "Link detected — Open with browser?"
+                    }
+                }
             } else {
-                tvStatus.text = "Image Region Selected"
+                tvStatus.text = "Crop Selected"
+                tvSummary.text = "No text found • Drag corners to resize"
                 etExtracted.setText("")
             }
 
@@ -338,16 +366,14 @@ class LassoCaptureOverlay(
                     SmartEntityType.OTP, SmartEntityType.MATH, SmartEntityType.QR_CODE -> {
                         copyToClipboard(entity.value)
                         Toast.makeText(context, "Copied: ${entity.value}", Toast.LENGTH_SHORT).show()
-                        if (entity.type == SmartEntityType.QR_CODE &&
-                            (entity.value.startsWith("http://") || entity.value.startsWith("https://"))
-                        ) {
-                            openUrl(entity.value)
+                        val qrUrl = SmartTextAnalyzer.extractFirstUrl(entity.value)
+                        if (entity.type == SmartEntityType.QR_CODE && qrUrl != null) {
+                            openUrl(qrUrl)
                         }
                     }
                     SmartEntityType.URL -> {
                         copyToClipboard(entity.value)
-                        prefs.addClip(entity.value, "Link OCR")
-                        Toast.makeText(context, "Copied & opening link", Toast.LENGTH_SHORT).show()
+                        prefs.addClip(entity.value, "Link")
                         openUrl(entity.value)
                     }
                     SmartEntityType.PHONE -> {
@@ -379,7 +405,7 @@ class LassoCaptureOverlay(
 
     private fun copyToClipboard(text: String) {
         val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        cm.setPrimaryClip(ClipData.newPlainText("SnapEdge OCR", text))
+        cm.setPrimaryClip(ClipData.newPlainText("SnapEdge", text))
     }
 
     private fun saveCropToGallery(bitmap: Bitmap): Boolean {
@@ -423,6 +449,7 @@ class LassoCaptureOverlay(
     }
 
     fun dismiss() {
+        scope.cancel()
         rootView?.let {
             runCatching { windowManager.removeView(it) }
         }

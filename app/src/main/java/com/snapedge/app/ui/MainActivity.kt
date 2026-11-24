@@ -1,11 +1,13 @@
 package com.snapedge.app.ui
 
 import android.Manifest
+import android.app.Activity
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.media.projection.MediaProjectionManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -27,12 +29,13 @@ import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.materialswitch.MaterialSwitch
 import com.snapedge.app.R
-import com.snapedge.app.capture.CapturePermissionActivity
 import com.snapedge.app.capture.ScreenCaptureHolder
+import com.snapedge.app.capture.ScreenCaptureService
 import com.snapedge.app.data.PreferencesManager
 import com.snapedge.app.model.EdgeSide
 import com.snapedge.app.overlay.PinnedFloatingWindow
 import com.snapedge.app.service.EdgeOverlayService
+import java.io.File
 
 /**
  * Companion dashboard for enabling the floating Edge Sidebar, granting permissions,
@@ -51,6 +54,28 @@ class MainActivity : AppCompatActivity() {
     private lateinit var edgePreviewGuide: View
     private lateinit var edgePreviewBar: View
     private lateinit var tvEdgePreviewHint: TextView
+    private var pendingCaptureAction: String? = null
+
+    private val projectionLauncher =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            if (result.resultCode == Activity.RESULT_OK && result.data != null) {
+                val serviceIntent = Intent(this, ScreenCaptureService::class.java).apply {
+                    putExtra(ScreenCaptureService.EXTRA_RESULT_CODE, result.resultCode)
+                    putExtra(ScreenCaptureService.EXTRA_DATA, result.data)
+                    putExtra(ScreenCaptureService.EXTRA_PENDING_ACTION, pendingCaptureAction)
+                }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    startForegroundService(serviceIntent)
+                } else {
+                    startService(serviceIntent)
+                }
+                Toast.makeText(this, "Capture engine ready", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this, "Screen capture permission is required.", Toast.LENGTH_SHORT).show()
+            }
+            pendingCaptureAction = null
+            refreshStatusAndVault()
+        }
 
     private val notificationPermLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -74,7 +99,25 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        cleanTempCaptureCache()
         refreshStatusAndVault()
+    }
+
+    private fun cleanTempCaptureCache() {
+        val dir = File(cacheDir, "captures")
+        if (!dir.exists()) return
+        val cutoff = System.currentTimeMillis() - 10 * 60 * 1000L
+        dir.listFiles()?.forEach { file ->
+            if (file.lastModified() < cutoff) {
+                runCatching { file.delete() }
+            }
+        }
+    }
+
+    private fun requestScreenCapture(actionAfterGrant: String? = null) {
+        pendingCaptureAction = actionAfterGrant
+        val mgr = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+        projectionLauncher.launch(mgr.createScreenCaptureIntent())
     }
 
     private fun bindViews() {
@@ -100,7 +143,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         findViewById<MaterialButton>(R.id.btnGrantCapture).setOnClickListener {
-            CapturePermissionActivity.launch(this)
+            requestScreenCapture(null)
         }
 
         findViewById<MaterialButton>(R.id.btnQuickCircleOcr).setOnClickListener {
@@ -108,15 +151,11 @@ class MainActivity : AppCompatActivity() {
                 openOverlaySettings()
                 return@setOnClickListener
             }
-            EdgeOverlayService.start(this, EdgeOverlayService.ACTION_CIRCLE_OCR)
-        }
-
-        findViewById<MaterialButton>(R.id.btnQuickLongShot).setOnClickListener {
-            if (!Settings.canDrawOverlays(this)) {
-                openOverlaySettings()
-                return@setOnClickListener
+            if (!ScreenCaptureHolder.isReady()) {
+                requestScreenCapture(EdgeOverlayService.ACTION_CIRCLE_OCR)
+            } else {
+                EdgeOverlayService.start(this, EdgeOverlayService.ACTION_CIRCLE_OCR)
             }
-            EdgeOverlayService.start(this, EdgeOverlayService.ACTION_LONG_SHOT)
         }
 
         findViewById<MaterialButton>(R.id.btnClearVault).setOnClickListener {
@@ -235,11 +274,15 @@ class MainActivity : AppCompatActivity() {
         prefs.setEdgeEnabled(enable)
         if (enable) {
             EdgeOverlayService.start(this)
+            if (!ScreenCaptureHolder.isReady()) {
+                requestScreenCapture(null)
+            }
         } else {
             val stopIntent = Intent(this, EdgeOverlayService::class.java).apply {
                 action = EdgeOverlayService.ACTION_STOP
             }
             startService(stopIntent)
+            stopService(Intent(this, ScreenCaptureService::class.java))
         }
         refreshStatusAndVault()
     }

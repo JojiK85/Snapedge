@@ -88,15 +88,13 @@ class SnapEdgeWidgetProvider : AppWidgetProvider() {
                 )
             )
 
-            val longShotIntent = Intent(context, EdgeOverlayService::class.java).apply {
-                action = EdgeOverlayService.ACTION_LONG_SHOT
-            }
+            val vaultIntent = Intent(context, MainActivity::class.java)
             views.setOnClickPendingIntent(
-                R.id.widgetBtnLongShot,
-                PendingIntent.getForegroundService(
+                R.id.widgetBtnVault,
+                PendingIntent.getActivity(
                     context,
                     12,
-                    longShotIntent,
+                    vaultIntent,
                     PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
                 )
             )

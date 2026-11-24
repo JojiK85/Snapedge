@@ -3,15 +3,21 @@ package com.snapedge.app.capture
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.Color
 import android.graphics.PixelFormat
 import android.hardware.display.DisplayManager
 import android.hardware.display.VirtualDisplay
 import android.media.ImageReader
 import android.media.projection.MediaProjection
+import android.os.Build
 import android.os.Handler
 import android.os.HandlerThread
+import android.os.Looper
 import android.util.DisplayMetrics
+import android.view.Gravity
+import android.view.View
 import android.view.WindowManager
+import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Mutex
@@ -21,16 +27,21 @@ import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.coroutines.resume
 
 /**
- * Manages a persistent MediaProjection VirtualDisplay session and captures crisp screen Bitmaps on demand.
- * Creates a fresh ImageReader per capture so SurfaceFlinger always delivers an immediate frame even on static screens.
+ * Manages a persistent MediaProjection + ImageReader session and captures screen Bitmaps on demand.
+ * Keeps a single ImageReader bound to the VirtualDisplay from creation for Android 14+ compatibility.
  */
 object ScreenCaptureHolder {
 
+    private var appContext: Context? = null
     private var mediaProjection: MediaProjection? = null
     private var virtualDisplay: VirtualDisplay? = null
+    private var imageReader: ImageReader? = null
     private var captureThread: HandlerThread? = null
     private var captureHandler: Handler? = null
     private val captureMutex = Mutex()
+
+    @Volatile
+    private var pendingContinuation: CancellableContinuation<Bitmap?>? = null
 
     private var screenWidth = 0
     private var screenHeight = 0
@@ -42,10 +53,12 @@ object ScreenCaptureHolder {
         }
     }
 
-    fun isReady(): Boolean = mediaProjection != null && virtualDisplay != null
+    fun isReady(): Boolean = mediaProjection != null && virtualDisplay != null && imageReader != null
 
+    @SuppressLint("WrongConstant")
     fun init(context: Context, projection: MediaProjection) {
         release()
+        appContext = context.applicationContext
 
         val wm = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
         val metrics = DisplayMetrics()
@@ -62,51 +75,92 @@ object ScreenCaptureHolder {
         mediaProjection = projection
         projection.registerCallback(projectionCallback, captureHandler)
 
+        val reader = ImageReader.newInstance(screenWidth, screenHeight, PixelFormat.RGBA_8888, 2)
+        reader.setOnImageAvailableListener({ r ->
+            val image = runCatching { r.acquireLatestImage() }.getOrNull() ?: return@setOnImageAvailableListener
+            val cont = pendingContinuation
+            if (cont != null && cont.isActive) {
+                pendingContinuation = null
+                val bitmap = runCatching { imageToBitmap(image) }.getOrNull()
+                image.close()
+                cont.resume(bitmap)
+            } else {
+                image.close()
+            }
+        }, captureHandler)
+        imageReader = reader
+
         virtualDisplay = projection.createVirtualDisplay(
             "SnapEdgeDisplay",
             screenWidth,
             screenHeight,
             screenDensity,
             DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
-            null,
+            reader.surface,
             null,
             captureHandler
         )
     }
 
-    @SuppressLint("WrongConstant")
     suspend fun captureScreen(): Bitmap? = captureMutex.withLock {
+        if (!isReady()) return@withLock null
         withContext(Dispatchers.IO) {
-            val display = virtualDisplay ?: return@withContext null
-            val handler = captureHandler ?: return@withContext null
-
-            val reader = ImageReader.newInstance(screenWidth, screenHeight, PixelFormat.RGBA_8888, 2)
+            var nudgeView: View? = null
+            val mainHandler = Handler(Looper.getMainLooper())
             try {
-                withTimeoutOrNull(1800L) {
+                withTimeoutOrNull(2000L) {
                     suspendCancellableCoroutine { cont ->
-                        reader.setOnImageAvailableListener({ r ->
-                            val image = r.acquireLatestImage() ?: return@setOnImageAvailableListener
-                            r.setOnImageAvailableListener(null, null)
-                            display.surface = null
-                            val bitmap = runCatching { imageToBitmap(image) }.getOrNull()
-                            image.close()
-                            if (cont.isActive) cont.resume(bitmap)
-                        }, handler)
-
-                        display.surface = reader.surface
-
+                        pendingContinuation = cont
                         cont.invokeOnCancellation {
-                            reader.setOnImageAvailableListener(null, null)
-                            display.surface = null
+                            if (pendingContinuation === cont) {
+                                pendingContinuation = null
+                            }
+                        }
+                        // Force SurfaceFlinger to composite a fresh frame even when screen is static
+                        mainHandler.post {
+                            nudgeView = addCompositeNudge()
                         }
                     }
                 }
             } finally {
-                display.surface = null
-                runCatching { reader.setOnImageAvailableListener(null, null) }
-                runCatching { reader.close() }
+                pendingContinuation = null
+                mainHandler.post {
+                    removeCompositeNudge(nudgeView)
+                }
             }
         }
+    }
+
+    private fun addCompositeNudge(): View? {
+        val ctx = appContext ?: return null
+        val wm = ctx.getSystemService(Context.WINDOW_SERVICE) as? WindowManager ?: return null
+        return runCatching {
+            val v = View(ctx).apply { setBackgroundColor(Color.argb(1, 0, 0, 0)) }
+            val layoutType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+            } else {
+                @Suppress("DEPRECATION")
+                WindowManager.LayoutParams.TYPE_PHONE
+            }
+            val lp = WindowManager.LayoutParams(
+                1,
+                1,
+                layoutType,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
+                PixelFormat.TRANSLUCENT
+            ).apply {
+                gravity = Gravity.TOP or Gravity.START
+            }
+            wm.addView(v, lp)
+            v
+        }.getOrNull()
+    }
+
+    private fun removeCompositeNudge(view: View?) {
+        val v = view ?: return
+        val ctx = appContext ?: return
+        val wm = ctx.getSystemService(Context.WINDOW_SERVICE) as? WindowManager ?: return
+        runCatching { wm.removeView(v) }
     }
 
     private fun imageToBitmap(image: android.media.Image): Bitmap {
@@ -133,13 +187,16 @@ object ScreenCaptureHolder {
     }
 
     fun release() {
-        runCatching { virtualDisplay?.surface = null }
+        pendingContinuation = null
+        runCatching { imageReader?.setOnImageAvailableListener(null, null) }
         runCatching { virtualDisplay?.release() }
+        runCatching { imageReader?.close() }
         runCatching { mediaProjection?.unregisterCallback(projectionCallback) }
         runCatching { mediaProjection?.stop() }
         runCatching { captureThread?.quitSafely() }
 
         virtualDisplay = null
+        imageReader = null
         mediaProjection = null
         captureHandler = null
         captureThread = null

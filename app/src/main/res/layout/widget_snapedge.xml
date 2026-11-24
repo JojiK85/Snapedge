@@ -48,13 +48,13 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
-            android:text="Circle OCR"
+            android:text="Circle"
             android:textColor="@color/text_primary"
             android:textSize="11sp" />
     </LinearLayout>
 
     <LinearLayout
-        android:id="@+id/widgetBtnLongShot"
+        android:id="@+id/widgetBtnVault"
         android:layout_width="0dp"
         android:layout_height="match_parent"
         android:layout_weight="1"
@@ -64,13 +64,13 @@
         <ImageView
             android:layout_width="24dp"
             android:layout_height="24dp"
-            android:src="@drawable/ic_long_shot" />
+            android:src="@drawable/ic_vault" />
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
-            android:text="Long Shot"
+            android:text="Vault"
             android:textColor="@color/text_primary"
             android:textSize="11sp" />
     </LinearLayout>

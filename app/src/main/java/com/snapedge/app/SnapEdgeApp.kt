@@ -6,7 +6,7 @@ import android.app.NotificationManager
 import android.os.Build
 
 /**
- * Application entry point initializing notification channels for foreground overlay and capture services.
+ * Application entry point initializing a silent, minimal-priority notification channel.
  */
 class SnapEdgeApp : Application() {
 
@@ -20,10 +20,13 @@ class SnapEdgeApp : Application() {
             val channel = NotificationChannel(
                 getString(R.string.notif_channel_id),
                 getString(R.string.notif_channel_name),
-                NotificationManager.IMPORTANCE_LOW
+                NotificationManager.IMPORTANCE_MIN
             ).apply {
-                description = "Keeps the SnapEdge swipe sidebar and capture engine ready."
+                description = "Background helper channel"
                 setShowBadge(false)
+                setSound(null, null)
+                enableLights(false)
+                enableVibration(false)
             }
             val manager = getSystemService(NotificationManager::class.java)
             manager?.createNotificationChannel(channel)
