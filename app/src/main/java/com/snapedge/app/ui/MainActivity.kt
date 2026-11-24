@@ -10,8 +10,10 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
+import android.widget.FrameLayout
 import android.widget.RadioButton
 import android.widget.RadioGroup
 import android.widget.SeekBar
@@ -46,6 +48,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvPermOverlay: TextView
     private lateinit var tvPermCapture: TextView
     private lateinit var tvEmptyVault: TextView
+    private lateinit var edgePreviewGuide: View
+    private lateinit var edgePreviewBar: View
+    private lateinit var tvEdgePreviewHint: TextView
 
     private val notificationPermLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -78,6 +83,9 @@ class MainActivity : AppCompatActivity() {
         tvPermOverlay = findViewById(R.id.tvPermOverlay)
         tvPermCapture = findViewById(R.id.tvPermCapture)
         tvEmptyVault = findViewById(R.id.tvEmptyVault)
+        edgePreviewGuide = findViewById(R.id.edgePreviewGuide)
+        edgePreviewBar = findViewById(R.id.edgePreviewBar)
+        tvEdgePreviewHint = findViewById(R.id.tvEdgePreviewHint)
 
         switchMasterEdge.setOnCheckedChangeListener { _, isChecked ->
             if (isChecked) {
@@ -160,18 +168,23 @@ class MainActivity : AppCompatActivity() {
         seekVertical.progress = config.verticalPercent
         seekOpacity.progress = config.opacityPercent
         seekOpacity.isEnabled = !config.stealthMode
+        updateEdgePreviewGuide(config)
 
         switchStealth.setOnCheckedChangeListener { _, isChecked ->
             val current = prefs.getEdgeConfig()
-            prefs.saveEdgeConfig(current.copy(stealthMode = isChecked))
+            val updated = current.copy(stealthMode = isChecked)
+            prefs.saveEdgeConfig(updated)
             seekOpacity.isEnabled = !isChecked
+            updateEdgePreviewGuide(updated)
             notifyOverlayConfigChanged()
         }
 
         rgSide.setOnCheckedChangeListener { _, checkedId ->
             val current = prefs.getEdgeConfig()
             val side = if (checkedId == R.id.rbLeftEdge) EdgeSide.LEFT else EdgeSide.RIGHT
-            prefs.saveEdgeConfig(current.copy(side = side))
+            val updated = current.copy(side = side)
+            prefs.saveEdgeConfig(updated)
+            updateEdgePreviewGuide(updated)
             notifyOverlayConfigChanged()
         }
 
@@ -179,7 +192,9 @@ class MainActivity : AppCompatActivity() {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 if (!fromUser) return
                 val current = prefs.getEdgeConfig()
-                prefs.saveEdgeConfig(current.copy(verticalPercent = progress.coerceAtLeast(5)))
+                val updated = current.copy(verticalPercent = progress.coerceAtLeast(5))
+                prefs.saveEdgeConfig(updated)
+                updateEdgePreviewGuide(updated)
                 notifyOverlayConfigChanged()
             }
 
@@ -227,6 +242,29 @@ class MainActivity : AppCompatActivity() {
             startService(stopIntent)
         }
         refreshStatusAndVault()
+    }
+
+    private fun updateEdgePreviewGuide(config: com.snapedge.app.model.EdgeConfig) {
+        val screenHeight = resources.displayMetrics.heightPixels
+        val params = edgePreviewGuide.layoutParams as FrameLayout.LayoutParams
+        val parentGroup = edgePreviewGuide as android.widget.LinearLayout
+        parentGroup.removeAllViews()
+
+        if (config.side == EdgeSide.RIGHT) {
+            params.gravity = Gravity.TOP or Gravity.END
+            edgePreviewBar.setBackgroundResource(R.drawable.bg_edge_handle_right)
+            tvEdgePreviewHint.text = "← Swipe here"
+            parentGroup.addView(tvEdgePreviewHint)
+            parentGroup.addView(edgePreviewBar)
+        } else {
+            params.gravity = Gravity.TOP or Gravity.START
+            edgePreviewBar.setBackgroundResource(R.drawable.bg_edge_handle_left)
+            tvEdgePreviewHint.text = "Swipe here →"
+            parentGroup.addView(edgePreviewBar)
+            parentGroup.addView(tvEdgePreviewHint)
+        }
+        params.topMargin = (screenHeight * (config.verticalPercent / 100f)).toInt()
+        edgePreviewGuide.layoutParams = params
     }
 
     private fun notifyOverlayConfigChanged() {

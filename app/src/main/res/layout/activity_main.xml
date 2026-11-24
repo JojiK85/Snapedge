@@ -1,9 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/surface_dark"
+    android:background="@color/surface_dark">
+
+<androidx.core.widget.NestedScrollView
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
     android:fillViewport="true">
 
     <LinearLayout
@@ -324,3 +328,34 @@
 
     </LinearLayout>
 </androidx.core.widget.NestedScrollView>
+
+<!-- Live In-App Edge Swipe Zone Guide (visible only inside SnapEdge setup app) -->
+<LinearLayout
+    android:id="@+id/edgePreviewGuide"
+    android:layout_width="wrap_content"
+    android:layout_height="180dp"
+    android:layout_gravity="top|end"
+    android:gravity="center_vertical"
+    android:orientation="horizontal">
+
+    <TextView
+        android:id="@+id/tvEdgePreviewHint"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="4dp"
+        android:background="#CC0F172A"
+        android:paddingHorizontal="6dp"
+        android:paddingVertical="3dp"
+        android:text="← Swipe here"
+        android:textColor="@color/accent_glow"
+        android:textSize="10sp"
+        android:textStyle="bold" />
+
+    <View
+        android:id="@+id/edgePreviewBar"
+        android:layout_width="12dp"
+        android:layout_height="match_parent"
+        android:background="@drawable/bg_edge_handle_right" />
+</LinearLayout>
+
+</FrameLayout>

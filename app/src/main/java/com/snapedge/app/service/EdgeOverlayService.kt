@@ -19,6 +19,7 @@ import android.os.Vibrator
 import android.os.VibratorManager
 import android.provider.Settings
 import android.util.DisplayMetrics
+import android.view.ContextThemeWrapper
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.MotionEvent
@@ -57,6 +58,7 @@ class EdgeOverlayService : Service() {
 
     private lateinit var windowManager: WindowManager
     private lateinit var prefs: PreferencesManager
+    private lateinit var themedContext: Context
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
     private var edgeHandleView: View? = null
@@ -71,6 +73,7 @@ class EdgeOverlayService : Service() {
         super.onCreate()
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         prefs = PreferencesManager(this)
+        themedContext = ContextThemeWrapper(this, R.style.Theme_SnapEdge)
         startForegroundSafely()
         if (!Settings.canDrawOverlays(this)) {
             Toast.makeText(this, "Grant 'Display over other apps' first", Toast.LENGTH_SHORT).show()
@@ -131,7 +134,7 @@ class EdgeOverlayService : Service() {
 
     @SuppressLint("ClickableViewAccessibility")
     private fun attachEdgeHandle() {
-        val view = LayoutInflater.from(this).inflate(R.layout.overlay_edge_handle, null)
+        val view = LayoutInflater.from(themedContext).inflate(R.layout.overlay_edge_handle, null)
         edgeHandleView = view
 
         val density = resources.displayMetrics.density
@@ -258,7 +261,7 @@ class EdgeOverlayService : Service() {
     private fun openSidebar() {
         if (isSidebarOpen || isCaptureOverlayActive) return
         val config = prefs.getEdgeConfig()
-        val view = LayoutInflater.from(this).inflate(R.layout.overlay_sidebar_panel, null)
+        val view = LayoutInflater.from(themedContext).inflate(R.layout.overlay_sidebar_panel, null)
         sidebarView = view
         isSidebarOpen = true
         edgeHandleView?.visibility = View.GONE

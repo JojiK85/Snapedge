@@ -10,6 +10,7 @@ import android.graphics.PixelFormat
 import android.net.Uri
 import android.os.Build
 import android.text.method.ScrollingMovementMethod
+import android.view.ContextThemeWrapper
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.MotionEvent
@@ -36,7 +37,8 @@ class PinnedFloatingWindow(
 
     @SuppressLint("ClickableViewAccessibility")
     fun show() {
-        val view = LayoutInflater.from(context).inflate(R.layout.overlay_pinned_window, null)
+        val themedContext = ContextThemeWrapper(context, R.style.Theme_SnapEdge)
+        val view = LayoutInflater.from(themedContext).inflate(R.layout.overlay_pinned_window, null)
         rootView = view
 
         val dragHeader = view.findViewById<View>(R.id.pinnedDragHeader)

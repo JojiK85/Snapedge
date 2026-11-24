@@ -12,6 +12,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
+import android.view.ContextThemeWrapper
 import android.view.Gravity
 import android.view.KeyEvent
 import android.view.LayoutInflater
@@ -56,12 +57,13 @@ class LassoCaptureOverlay(
 ) {
     private val scope = CoroutineScope(Dispatchers.Main + Job())
     private val prefs = PreferencesManager(context)
+    private val themedContext = ContextThemeWrapper(context, R.style.Theme_SnapEdge)
 
     private var rootView: View? = null
     private var croppedBitmap: Bitmap? = null
 
     fun show() {
-        val inflater = LayoutInflater.from(context)
+        val inflater = LayoutInflater.from(themedContext)
         val view = inflater.inflate(R.layout.overlay_lasso_capture, null)
         rootView = view
 
@@ -328,7 +330,7 @@ class LassoCaptureOverlay(
     }
 
     private fun createEntityChip(entity: SmartEntity): Chip {
-        return Chip(context).apply {
+        return Chip(themedContext).apply {
             text = entity.label
             isClickable = true
             setOnClickListener {

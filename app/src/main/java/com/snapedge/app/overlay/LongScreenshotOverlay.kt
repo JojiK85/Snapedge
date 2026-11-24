@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.PixelFormat
 import android.os.Build
+import android.view.ContextThemeWrapper
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
@@ -45,7 +46,8 @@ class LongScreenshotOverlay(
     private var isStitching = false
 
     fun show() {
-        val view = LayoutInflater.from(context).inflate(R.layout.overlay_long_screenshot, null)
+        val themedContext = ContextThemeWrapper(context, R.style.Theme_SnapEdge)
+        val view = LayoutInflater.from(themedContext).inflate(R.layout.overlay_long_screenshot, null)
         rootView = view
 
         val tvStatus = view.findViewById<TextView>(R.id.tvLongShotStatus)
