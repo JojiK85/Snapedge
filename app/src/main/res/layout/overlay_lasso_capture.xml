@@ -18,46 +18,48 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
-    <!-- Top Instruction & Mode Pill -->
+    <!-- Minimal Floating Mode & Quick Switch Pill -->
     <LinearLayout
         android:id="@+id/lassoTopBar"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_gravity="top|center_horizontal"
+        android:layout_gravity="top|end"
         android:layout_marginTop="40dp"
+        android:layout_marginEnd="14dp"
         android:background="@drawable/bg_pill_dark"
         android:elevation="10dp"
         android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:paddingHorizontal="14dp"
-        android:paddingVertical="8dp">
-
-        <TextView
-            android:id="@+id/tvLassoHint"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Circle anything to extract text &amp; QR"
-            android:textColor="@color/text_primary"
-            android:textSize="12sp"
-            android:textStyle="bold" />
+        android:paddingHorizontal="10dp"
+        android:paddingVertical="4dp">
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnToggleLassoMode"
             style="@style/Widget.Material3.Button.TextButton"
             android:layout_width="wrap_content"
             android:layout_height="32dp"
-            android:layout_marginStart="8dp"
             android:minWidth="0dp"
             android:paddingHorizontal="8dp"
-            android:text="Box"
+            android:text="Box Crop"
             android:textColor="@color/accent_glow"
+            android:textSize="11sp" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnSwitchToLongShot"
+            style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="wrap_content"
+            android:layout_height="32dp"
+            android:minWidth="0dp"
+            android:paddingHorizontal="8dp"
+            android:text="Long Shot"
+            android:textColor="@color/text_primary"
             android:textSize="11sp" />
 
         <ImageButton
             android:id="@+id/btnCloseLasso"
             android:layout_width="28dp"
             android:layout_height="28dp"
-            android:layout_marginStart="4dp"
+            android:layout_marginStart="2dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="Close"
             android:padding="4dp"
@@ -209,6 +211,15 @@
                         android:layout_height="38dp"
                         android:layout_marginStart="6dp"
                         android:text="Search / Translate"
+                        android:textSize="12sp" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnSaveCropImage"
+                        style="@style/Widget.Material3.Button.TonalButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="38dp"
+                        android:layout_marginStart="6dp"
+                        android:text="Save Crop"
                         android:textSize="12sp" />
 
                     <com.google.android.material.button.MaterialButton

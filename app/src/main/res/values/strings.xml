@@ -13,7 +13,7 @@
     <string name="notif_capture_title">Screen Capture Ready</string>
     <string name="notif_capture_text">Ready for instant Circle OCR &amp; Long Screenshots.</string>
 
-    <string name="action_circle_ocr">Circle OCR</string>
+    <string name="action_circle_ocr">Circle &amp; Search</string>
     <string name="action_long_shot">Long Shot</string>
     <string name="action_full_shot">Quick Shot</string>
     <string name="action_pin_note">Pin Clip</string>

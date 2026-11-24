@@ -253,11 +253,21 @@
                     android:max="80"
                     android:progress="35" />
 
+                <com.google.android.material.materialswitch.MaterialSwitch
+                    android:id="@+id/switchStealthHandle"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:checked="true"
+                    android:text="Stealth Handle (Invisible — only you know)"
+                    android:textColor="@color/text_primary"
+                    android:textSize="13sp" />
+
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="6dp"
-                    android:text="Handle Opacity"
+                    android:text="Handle Opacity (when Stealth is OFF)"
                     android:textColor="@color/text_secondary"
                     android:textSize="12sp" />
 

@@ -14,21 +14,23 @@ import android.util.DisplayMetrics
 import android.view.WindowManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.coroutines.resume
 
 /**
- * Manages a single MediaProjection VirtualDisplay session and captures crisp screen Bitmaps on demand.
- * Sets VirtualDisplay surface to null while idle to eliminate background GPU/battery overhead.
+ * Manages a persistent MediaProjection VirtualDisplay session and captures crisp screen Bitmaps on demand.
+ * Creates a fresh ImageReader per capture so SurfaceFlinger always delivers an immediate frame even on static screens.
  */
 object ScreenCaptureHolder {
 
     private var mediaProjection: MediaProjection? = null
     private var virtualDisplay: VirtualDisplay? = null
-    private var imageReader: ImageReader? = null
     private var captureThread: HandlerThread? = null
     private var captureHandler: Handler? = null
+    private val captureMutex = Mutex()
 
     private var screenWidth = 0
     private var screenHeight = 0
@@ -42,7 +44,6 @@ object ScreenCaptureHolder {
 
     fun isReady(): Boolean = mediaProjection != null && virtualDisplay != null
 
-    @SuppressLint("WrongConstant")
     fun init(context: Context, projection: MediaProjection) {
         release()
 
@@ -61,7 +62,6 @@ object ScreenCaptureHolder {
         mediaProjection = projection
         projection.registerCallback(projectionCallback, captureHandler)
 
-        imageReader = ImageReader.newInstance(screenWidth, screenHeight, PixelFormat.RGBA_8888, 2)
         virtualDisplay = projection.createVirtualDisplay(
             "SnapEdgeDisplay",
             screenWidth,
@@ -74,34 +74,37 @@ object ScreenCaptureHolder {
         )
     }
 
-    suspend fun captureScreen(): Bitmap? = withContext(Dispatchers.IO) {
-        val display = virtualDisplay ?: return@withContext null
-        val reader = imageReader ?: return@withContext null
-        val handler = captureHandler ?: return@withContext null
+    @SuppressLint("WrongConstant")
+    suspend fun captureScreen(): Bitmap? = captureMutex.withLock {
+        withContext(Dispatchers.IO) {
+            val display = virtualDisplay ?: return@withContext null
+            val handler = captureHandler ?: return@withContext null
 
-        withTimeoutOrNull(1500L) {
-            suspendCancellableCoroutine { cont ->
-                // Clear any stale buffered images first
-                while (true) {
-                    val stale = reader.acquireLatestImage() ?: break
-                    stale.close()
+            val reader = ImageReader.newInstance(screenWidth, screenHeight, PixelFormat.RGBA_8888, 2)
+            try {
+                withTimeoutOrNull(1800L) {
+                    suspendCancellableCoroutine { cont ->
+                        reader.setOnImageAvailableListener({ r ->
+                            val image = r.acquireLatestImage() ?: return@setOnImageAvailableListener
+                            r.setOnImageAvailableListener(null, null)
+                            display.surface = null
+                            val bitmap = runCatching { imageToBitmap(image) }.getOrNull()
+                            image.close()
+                            if (cont.isActive) cont.resume(bitmap)
+                        }, handler)
+
+                        display.surface = reader.surface
+
+                        cont.invokeOnCancellation {
+                            reader.setOnImageAvailableListener(null, null)
+                            display.surface = null
+                        }
+                    }
                 }
-
-                reader.setOnImageAvailableListener({ r ->
-                    val image = r.acquireLatestImage() ?: return@setOnImageAvailableListener
-                    r.setOnImageAvailableListener(null, null)
-                    display.surface = null
-                    val bitmap = runCatching { imageToBitmap(image) }.getOrNull()
-                    image.close()
-                    if (cont.isActive) cont.resume(bitmap)
-                }, handler)
-
-                display.surface = reader.surface
-
-                cont.invokeOnCancellation {
-                    reader.setOnImageAvailableListener(null, null)
-                    display.surface = null
-                }
+            } finally {
+                display.surface = null
+                runCatching { reader.setOnImageAvailableListener(null, null) }
+                runCatching { reader.close() }
             }
         }
     }
@@ -130,15 +133,13 @@ object ScreenCaptureHolder {
     }
 
     fun release() {
-        runCatching { imageReader?.setOnImageAvailableListener(null, null) }
+        runCatching { virtualDisplay?.surface = null }
         runCatching { virtualDisplay?.release() }
-        runCatching { imageReader?.close() }
         runCatching { mediaProjection?.unregisterCallback(projectionCallback) }
         runCatching { mediaProjection?.stop() }
         runCatching { captureThread?.quitSafely() }
 
         virtualDisplay = null
-        imageReader = null
         mediaProjection = null
         captureHandler = null
         captureThread = null

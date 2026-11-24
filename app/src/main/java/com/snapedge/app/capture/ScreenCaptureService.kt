@@ -41,10 +41,7 @@ class ScreenCaptureService : Service() {
 
             val pendingAction = intent?.getStringExtra(EXTRA_PENDING_ACTION)
             if (!pendingAction.isNullOrEmpty()) {
-                val overlayIntent = Intent(this, EdgeOverlayService::class.java).apply {
-                    action = pendingAction
-                }
-                startService(overlayIntent)
+                EdgeOverlayService.start(this, pendingAction)
             }
         } else if (!ScreenCaptureHolder.isReady()) {
             stopSelf()

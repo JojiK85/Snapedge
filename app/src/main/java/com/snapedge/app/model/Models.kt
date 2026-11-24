@@ -10,7 +10,8 @@ data class EdgeConfig(
     val enabled: Boolean = false,
     val side: EdgeSide = EdgeSide.RIGHT,
     val verticalPercent: Int = 35,
-    val opacityPercent: Int = 65
+    val opacityPercent: Int = 65,
+    val stealthMode: Boolean = true
 )
 
 data class SavedClip(

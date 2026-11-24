@@ -11,6 +11,7 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.graphics.Bitmap
 import android.graphics.PixelFormat
+import android.graphics.Rect
 import android.os.Build
 import android.os.IBinder
 import android.os.VibrationEffect
@@ -133,16 +134,28 @@ class EdgeOverlayService : Service() {
         val view = LayoutInflater.from(this).inflate(R.layout.overlay_edge_handle, null)
         edgeHandleView = view
 
+        val density = resources.displayMetrics.density
+        val handleWidthPx = (24 * density).toInt()
+        val handleHeightPx = (180 * density).toInt()
+
         val layoutType = overlayLayoutType()
         val params = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            WindowManager.LayoutParams.WRAP_CONTENT,
+            handleWidthPx,
+            handleHeightPx,
             layoutType,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT
         )
         edgeParams = params
         applyEdgeHandleConfig()
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            view.addOnLayoutChangeListener { v, _, _, _, _, _, _, _, _ ->
+                if (v.width > 0 && v.height > 0) {
+                    v.systemGestureExclusionRects = listOf(Rect(0, 0, v.width, v.height))
+                }
+            }
+        }
 
         var downX = 0f
         var downY = 0f
@@ -163,13 +176,13 @@ class EdgeOverlayService : Service() {
                 MotionEvent.ACTION_MOVE -> {
                     val dx = event.rawX - downX
                     val dy = event.rawY - downY
-                    val swipeInward = if (config.side == EdgeSide.RIGHT) dx < -48f else dx > 48f
+                    val swipeInward = if (config.side == EdgeSide.RIGHT) dx < -28f else dx > 28f
 
                     if (swipeInward && abs(dx) > abs(dy)) {
                         vibrateLight()
                         openSidebar()
                         true
-                    } else if (abs(dy) > 20f) {
+                    } else if (!config.stealthMode && abs(dy) > 20f) {
                         movedVertically = true
                         params.y = startY + dy.toInt()
                         runCatching { windowManager.updateViewLayout(view, params) }
@@ -183,7 +196,7 @@ class EdgeOverlayService : Service() {
                     val dx = event.rawX - downX
                     val dy = event.rawY - downY
                     val isTap = abs(dx) < 18f && abs(dy) < 18f && !movedVertically
-                    if (isTap) {
+                    if (isTap && !config.stealthMode) {
                         vibrateLight()
                         openSidebar()
                     } else if (movedVertically) {
@@ -198,7 +211,15 @@ class EdgeOverlayService : Service() {
             }
         }
 
-        windowManager.addView(view, params)
+        runCatching {
+            windowManager.addView(view, params)
+            val sideLabel = if (prefs.getEdgeConfig().side == EdgeSide.RIGHT) "right" else "left"
+            val modeText = if (prefs.getEdgeConfig().stealthMode) "stealth" else "visible"
+            Toast.makeText(this, "SnapEdge active ($modeText on $sideLabel edge)", Toast.LENGTH_SHORT).show()
+        }.onFailure { err ->
+            Toast.makeText(this, "Overlay error: ${err.message}", Toast.LENGTH_LONG).show()
+            stopSelf()
+        }
     }
 
     private fun applyEdgeHandleConfig() {
@@ -219,7 +240,12 @@ class EdgeOverlayService : Service() {
             pill.setBackgroundResource(R.drawable.bg_edge_handle_left)
         }
         pill.layoutParams = lp
-        pill.alpha = (config.opacityPercent.coerceIn(15, 100) / 100f)
+        pill.animate().cancel()
+        pill.alpha = if (config.stealthMode) {
+            0f
+        } else {
+            (config.opacityPercent.coerceIn(15, 100) / 100f)
+        }
 
         params.x = 0
         params.y = (metrics.heightPixels * (config.verticalPercent / 100f)).toInt()
@@ -285,7 +311,12 @@ class EdgeOverlayService : Service() {
             }
         }
 
-        windowManager.addView(view, params)
+        runCatching {
+            windowManager.addView(view, params)
+        }.onFailure { err ->
+            Toast.makeText(this, "Could not open sidebar: ${err.message}", Toast.LENGTH_SHORT).show()
+            removeSidebar()
+        }
     }
 
     private fun populateRecentClips(container: LinearLayout) {
@@ -352,6 +383,10 @@ class EdgeOverlayService : Service() {
                 context = this@EdgeOverlayService,
                 windowManager = windowManager,
                 screenBitmap = screen,
+                onSwitchToLongShot = {
+                    isCaptureOverlayActive = false
+                    triggerLongScreenshot()
+                },
                 onDismissed = {
                     isCaptureOverlayActive = false
                     edgeHandleView?.visibility = View.VISIBLE

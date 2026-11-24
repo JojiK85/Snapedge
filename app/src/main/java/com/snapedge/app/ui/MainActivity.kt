@@ -151,12 +151,22 @@ class MainActivity : AppCompatActivity() {
         val rgSide = findViewById<RadioGroup>(R.id.rgEdgeSide)
         val rbRight = findViewById<RadioButton>(R.id.rbRightEdge)
         val rbLeft = findViewById<RadioButton>(R.id.rbLeftEdge)
+        val switchStealth = findViewById<MaterialSwitch>(R.id.switchStealthHandle)
         val seekVertical = findViewById<SeekBar>(R.id.seekVerticalPos)
         val seekOpacity = findViewById<SeekBar>(R.id.seekOpacity)
 
         if (config.side == EdgeSide.LEFT) rbLeft.isChecked = true else rbRight.isChecked = true
+        switchStealth.isChecked = config.stealthMode
         seekVertical.progress = config.verticalPercent
         seekOpacity.progress = config.opacityPercent
+        seekOpacity.isEnabled = !config.stealthMode
+
+        switchStealth.setOnCheckedChangeListener { _, isChecked ->
+            val current = prefs.getEdgeConfig()
+            prefs.saveEdgeConfig(current.copy(stealthMode = isChecked))
+            seekOpacity.isEnabled = !isChecked
+            notifyOverlayConfigChanged()
+        }
 
         rgSide.setOnCheckedChangeListener { _, checkedId ->
             val current = prefs.getEdgeConfig()

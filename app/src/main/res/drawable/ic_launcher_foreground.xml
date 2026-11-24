@@ -1,0 +1,57 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Soft outer ring glow -->
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M54,30 A24,24 0 1,1 30.8,60"
+        android:strokeAlpha="0.28"
+        android:strokeColor="#22D3EE"
+        android:strokeLineCap="round"
+        android:strokeWidth="12" />
+
+    <!-- Main sweeping circle-search arc -->
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M54,30 A24,24 0 1,1 30.8,60"
+        android:strokeLineCap="round"
+        android:strokeWidth="6.5">
+        <aapt:attr name="android:strokeColor">
+            <gradient
+                android:endX="30"
+                android:endY="72"
+                android:startX="78"
+                android:startY="30"
+                android:type="linear">
+                <item
+                    android:color="#22D3EE"
+                    android:offset="0" />
+                <item
+                    android:color="#6366F1"
+                    android:offset="0.55" />
+                <item
+                    android:color="#EC4899"
+                    android:offset="1" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Sleek crop corner accent inside ring -->
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M45,51 V45 H51 M63,57 V63 H57"
+        android:strokeColor="#F8FAFC"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:strokeWidth="3.5" />
+
+    <!-- Spark star -->
+    <path
+        android:fillColor="#22D3EE"
+        android:pathData="M34,36 L36,41 L41,43 L36,45 L34,50 L32,45 L27,43 L32,41 Z" />
+
+</vector>

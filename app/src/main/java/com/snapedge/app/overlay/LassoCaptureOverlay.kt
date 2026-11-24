@@ -2,6 +2,7 @@ package com.snapedge.app.overlay
 
 import android.content.ClipData
 import android.content.ClipboardManager
+import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
@@ -9,6 +10,8 @@ import android.graphics.PixelFormat
 import android.graphics.RectF
 import android.net.Uri
 import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
 import android.view.Gravity
 import android.view.KeyEvent
 import android.view.LayoutInflater
@@ -48,6 +51,7 @@ class LassoCaptureOverlay(
     private val context: Context,
     private val windowManager: WindowManager,
     private val screenBitmap: Bitmap,
+    private val onSwitchToLongShot: () -> Unit,
     private val onDismissed: () -> Unit
 ) {
     private val scope = CoroutineScope(Dispatchers.Main + Job())
@@ -64,6 +68,7 @@ class LassoCaptureOverlay(
         val ivFrozen = view.findViewById<ImageView>(R.id.ivFrozenScreen)
         val lassoView = view.findViewById<LassoDrawingView>(R.id.lassoDrawingView)
         val btnMode = view.findViewById<MaterialButton>(R.id.btnToggleLassoMode)
+        val btnLongShot = view.findViewById<MaterialButton>(R.id.btnSwitchToLongShot)
         val btnClose = view.findViewById<ImageButton>(R.id.btnCloseLasso)
 
         val cardResult = view.findViewById<MaterialCardView>(R.id.cardExtractionResult)
@@ -79,6 +84,7 @@ class LassoCaptureOverlay(
         val btnOpenBrowser = view.findViewById<MaterialButton>(R.id.btnOpenBrowser)
         val btnPin = view.findViewById<MaterialButton>(R.id.btnPinExtracted)
         val btnSearch = view.findViewById<MaterialButton>(R.id.btnSearchWeb)
+        val btnSaveCrop = view.findViewById<MaterialButton>(R.id.btnSaveCropImage)
         val btnEditCrop = view.findViewById<MaterialButton>(R.id.btnEditCropImage)
         val btnShare = view.findViewById<MaterialButton>(R.id.btnShareExtracted)
 
@@ -90,9 +96,14 @@ class LassoCaptureOverlay(
                 btnMode.text = "Circle"
             } else {
                 lassoView.mode = LassoDrawingView.SelectionMode.FREEHAND
-                btnMode.text = "Box"
+                btnMode.text = "Box Crop"
             }
             lassoView.clearSelection()
+        }
+
+        btnLongShot.setOnClickListener {
+            dismiss()
+            onSwitchToLongShot()
         }
 
         btnClose.setOnClickListener { dismiss() }
@@ -183,6 +194,19 @@ class LassoCaptureOverlay(
                     val url = "https://www.google.com/search?q=${Uri.encode(query)}"
                     openUrl(url)
                 }
+            }
+        }
+
+        btnSaveCrop.setOnClickListener {
+            val crop = croppedBitmap ?: return@setOnClickListener
+            scope.launch {
+                val saved = withContext(Dispatchers.IO) { saveCropToGallery(crop) }
+                Toast.makeText(
+                    context,
+                    if (saved) "Saved crop to Pictures/SnapEdge" else "Failed to save crop",
+                    Toast.LENGTH_SHORT
+                ).show()
+                if (saved) dismiss()
             }
         }
 
@@ -354,6 +378,35 @@ class LassoCaptureOverlay(
     private fun copyToClipboard(text: String) {
         val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         cm.setPrimaryClip(ClipData.newPlainText("SnapEdge OCR", text))
+    }
+
+    private fun saveCropToGallery(bitmap: Bitmap): Boolean {
+        val filename = "SnapEdge_Crop_${System.currentTimeMillis()}.png"
+        return runCatching {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val values = ContentValues().apply {
+                    put(MediaStore.Images.Media.DISPLAY_NAME, filename)
+                    put(MediaStore.Images.Media.MIME_TYPE, "image/png")
+                    put(MediaStore.Images.Media.RELATIVE_PATH, "${Environment.DIRECTORY_PICTURES}/SnapEdge")
+                }
+                val uri = context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+                    ?: return false
+                context.contentResolver.openOutputStream(uri)?.use { out ->
+                    bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+                } ?: false
+            } else {
+                @Suppress("DEPRECATION")
+                val dir = File(
+                    Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES),
+                    "SnapEdge"
+                ).apply { mkdirs() }
+                val file = File(dir, filename)
+                FileOutputStream(file).use { out ->
+                    bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+                }
+                true
+            }
+        }.getOrDefault(false)
     }
 
     private fun saveTempBitmap(bitmap: Bitmap): String? {

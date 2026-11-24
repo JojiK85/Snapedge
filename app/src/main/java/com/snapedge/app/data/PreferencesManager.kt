@@ -24,7 +24,8 @@ class PreferencesManager(context: Context) {
             enabled = prefs.getBoolean(KEY_EDGE_ENABLED, false),
             side = side,
             verticalPercent = prefs.getInt(KEY_VERTICAL_POS, 35),
-            opacityPercent = prefs.getInt(KEY_OPACITY, 65)
+            opacityPercent = prefs.getInt(KEY_OPACITY, 65),
+            stealthMode = prefs.getBoolean(KEY_STEALTH_MODE, true)
         )
     }
 
@@ -34,6 +35,7 @@ class PreferencesManager(context: Context) {
             .putString(KEY_EDGE_SIDE, config.side.name)
             .putInt(KEY_VERTICAL_POS, config.verticalPercent)
             .putInt(KEY_OPACITY, config.opacityPercent)
+            .putBoolean(KEY_STEALTH_MODE, config.stealthMode)
             .apply()
     }
 
@@ -76,6 +78,7 @@ class PreferencesManager(context: Context) {
         private const val KEY_EDGE_SIDE = "edge_side"
         private const val KEY_VERTICAL_POS = "vertical_pos"
         private const val KEY_OPACITY = "opacity"
+        private const val KEY_STEALTH_MODE = "stealth_mode"
         private const val KEY_CLIPS = "saved_clips"
         private const val MAX_CLIPS = 40
     }
