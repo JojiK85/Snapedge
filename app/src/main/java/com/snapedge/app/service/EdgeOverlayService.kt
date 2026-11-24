@@ -19,6 +19,7 @@ import android.os.Vibrator
 import android.os.VibratorManager
 import android.provider.Settings
 import android.util.DisplayMetrics
+import android.util.Log
 import android.view.ContextThemeWrapper
 import android.view.Gravity
 import android.view.LayoutInflater
@@ -373,19 +374,27 @@ class EdgeOverlayService : Service() {
             if (screen == null) {
                 isCaptureOverlayActive = false
                 edgeHandleView?.visibility = View.VISIBLE
+                Log.w("SnapEdgeEdge", "captureScreen returned null")
                 Toast.makeText(this@EdgeOverlayService, "Could not grab screen — try again", Toast.LENGTH_SHORT).show()
                 return@launch
             }
 
-            LassoCaptureOverlay(
-                context = this@EdgeOverlayService,
-                windowManager = windowManager,
-                screenBitmap = screen,
-                onDismissed = {
-                    isCaptureOverlayActive = false
-                    edgeHandleView?.visibility = View.VISIBLE
-                }
-            ).show()
+            runCatching {
+                LassoCaptureOverlay(
+                    context = this@EdgeOverlayService,
+                    windowManager = windowManager,
+                    screenBitmap = screen,
+                    onDismissed = {
+                        isCaptureOverlayActive = false
+                        edgeHandleView?.visibility = View.VISIBLE
+                    }
+                ).show()
+            }.onFailure { err ->
+                Log.e("SnapEdgeEdge", "LassoCaptureOverlay failed", err)
+                isCaptureOverlayActive = false
+                edgeHandleView?.visibility = View.VISIBLE
+                Toast.makeText(this@EdgeOverlayService, "Overlay error: ${err.message}", Toast.LENGTH_LONG).show()
+            }
         }
     }
 

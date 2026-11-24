@@ -14,6 +14,7 @@ import android.os.Handler
 import android.os.HandlerThread
 import android.os.Looper
 import android.util.DisplayMetrics
+import android.util.Log
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
@@ -28,9 +29,10 @@ import kotlin.coroutines.resume
 
 /**
  * Manages a persistent MediaProjection + ImageReader session and captures screen Bitmaps on demand.
- * Keeps a single ImageReader bound to the VirtualDisplay from creation for Android 14+ compatibility.
  */
 object ScreenCaptureHolder {
+
+    private const val TAG = "SnapEdgeCapture"
 
     private var appContext: Context? = null
     private var mediaProjection: MediaProjection? = null
@@ -49,6 +51,7 @@ object ScreenCaptureHolder {
 
     private val projectionCallback = object : MediaProjection.Callback() {
         override fun onStop() {
+            Log.d(TAG, "MediaProjection onStop() triggered")
             release()
         }
     }
@@ -81,8 +84,11 @@ object ScreenCaptureHolder {
             val cont = pendingContinuation
             if (cont != null && cont.isActive) {
                 pendingContinuation = null
-                val bitmap = runCatching { imageToBitmap(image) }.getOrNull()
+                val bitmap = runCatching { imageToBitmap(image) }
+                    .onFailure { Log.e(TAG, "imageToBitmap failed", it) }
+                    .getOrNull()
                 image.close()
+                Log.d(TAG, "Captured frame bitmap=${bitmap != null}")
                 cont.resume(bitmap)
             } else {
                 image.close()
@@ -100,15 +106,19 @@ object ScreenCaptureHolder {
             null,
             captureHandler
         )
+        Log.d(TAG, "Initialized VirtualDisplay ${screenWidth}x${screenHeight}@$screenDensity")
     }
 
     suspend fun captureScreen(): Bitmap? = captureMutex.withLock {
-        if (!isReady()) return@withLock null
+        if (!isReady()) {
+            Log.w(TAG, "captureScreen called when not ready")
+            return@withLock null
+        }
         withContext(Dispatchers.IO) {
             var nudgeView: View? = null
             val mainHandler = Handler(Looper.getMainLooper())
             try {
-                withTimeoutOrNull(2000L) {
+                withTimeoutOrNull(2500L) {
                     suspendCancellableCoroutine { cont ->
                         pendingContinuation = cont
                         cont.invokeOnCancellation {
@@ -116,7 +126,7 @@ object ScreenCaptureHolder {
                                 pendingContinuation = null
                             }
                         }
-                        // Force SurfaceFlinger to composite a fresh frame even when screen is static
+                        runCatching { virtualDisplay?.resize(screenWidth, screenHeight, screenDensity) }
                         mainHandler.post {
                             nudgeView = addCompositeNudge()
                         }
@@ -135,7 +145,9 @@ object ScreenCaptureHolder {
         val ctx = appContext ?: return null
         val wm = ctx.getSystemService(Context.WINDOW_SERVICE) as? WindowManager ?: return null
         return runCatching {
-            val v = View(ctx).apply { setBackgroundColor(Color.argb(1, 0, 0, 0)) }
+            val v = View(ctx).apply {
+                setBackgroundColor(Color.argb(24, 255, 255, 255))
+            }
             val layoutType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
             } else {
@@ -143,8 +155,8 @@ object ScreenCaptureHolder {
                 WindowManager.LayoutParams.TYPE_PHONE
             }
             val lp = WindowManager.LayoutParams(
-                1,
-                1,
+                8,
+                8,
                 layoutType,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
                 PixelFormat.TRANSLUCENT
@@ -153,6 +165,8 @@ object ScreenCaptureHolder {
             }
             wm.addView(v, lp)
             v
+        }.onFailure {
+            Log.e(TAG, "addCompositeNudge failed", it)
         }.getOrNull()
     }
 
