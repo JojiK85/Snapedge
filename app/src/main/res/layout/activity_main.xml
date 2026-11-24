@@ -186,29 +186,6 @@
                         android:layout_height="wrap_content"
                         android:text="Activate" />
                 </LinearLayout>
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal">
-
-                    <TextView
-                        android:id="@+id/tvPermAccessibility"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="• Auto-Scroll (Optional, hands-free long shot)"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="13sp" />
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btnGrantAccessibility"
-                        style="@style/Widget.Material3.Button.TextButton"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Enable" />
-                </LinearLayout>
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 

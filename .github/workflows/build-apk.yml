@@ -22,11 +22,21 @@ jobs:
         with:
           gradle-version: '8.7'
 
-      - name: Build Debug APK
-        run: gradle assembleDebug --no-daemon
+      - name: Generate Release Keystore
+        run: |
+          keytool -genkeypair -v \
+            -keystore app/release.jks \
+            -storetype PKCS12 \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -alias snapedge \
+            -storepass snapedge123 -keypass snapedge123 \
+            -dname "CN=SnapEdge, OU=App, O=SnapEdge, L=IN, S=IN, C=IN"
+
+      - name: Build Signed Release APK
+        run: gradle assembleRelease --no-daemon
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: SnapEdge-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: SnapEdge-release-apk
+          path: app/build/outputs/apk/release/app-release.apk

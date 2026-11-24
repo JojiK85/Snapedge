@@ -30,7 +30,6 @@ import com.snapedge.app.capture.ScreenCaptureHolder
 import com.snapedge.app.data.PreferencesManager
 import com.snapedge.app.model.EdgeSide
 import com.snapedge.app.overlay.PinnedFloatingWindow
-import com.snapedge.app.service.AutoScrollAccessibilityService
 import com.snapedge.app.service.EdgeOverlayService
 
 /**
@@ -46,7 +45,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvServiceStatus: TextView
     private lateinit var tvPermOverlay: TextView
     private lateinit var tvPermCapture: TextView
-    private lateinit var tvPermAccessibility: TextView
     private lateinit var tvEmptyVault: TextView
 
     private val notificationPermLauncher =
@@ -79,7 +77,6 @@ class MainActivity : AppCompatActivity() {
         tvServiceStatus = findViewById(R.id.tvServiceStatus)
         tvPermOverlay = findViewById(R.id.tvPermOverlay)
         tvPermCapture = findViewById(R.id.tvPermCapture)
-        tvPermAccessibility = findViewById(R.id.tvPermAccessibility)
         tvEmptyVault = findViewById(R.id.tvEmptyVault)
 
         switchMasterEdge.setOnCheckedChangeListener { _, isChecked ->
@@ -96,10 +93,6 @@ class MainActivity : AppCompatActivity() {
 
         findViewById<MaterialButton>(R.id.btnGrantCapture).setOnClickListener {
             CapturePermissionActivity.launch(this)
-        }
-
-        findViewById<MaterialButton>(R.id.btnGrantAccessibility).setOnClickListener {
-            startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
         }
 
         findViewById<MaterialButton>(R.id.btnQuickCircleOcr).setOnClickListener {
@@ -245,7 +238,6 @@ class MainActivity : AppCompatActivity() {
         val config = prefs.getEdgeConfig()
         val hasOverlay = Settings.canDrawOverlays(this)
         val hasCapture = ScreenCaptureHolder.isReady()
-        val hasAccessibility = AutoScrollAccessibilityService.isEnabled()
 
         switchMasterEdge.setOnCheckedChangeListener(null)
         switchMasterEdge.isChecked = config.enabled && hasOverlay
@@ -261,11 +253,6 @@ class MainActivity : AppCompatActivity() {
 
         tvPermOverlay.text = if (hasOverlay) "✓ Display over other apps (Granted)" else "• Display over other apps (Required)"
         tvPermCapture.text = if (hasCapture) "✓ Screen Capture Engine (Ready)" else "• Screen Capture Engine (Tap Activate)"
-        tvPermAccessibility.text = if (hasAccessibility) {
-            "✓ Auto-Scroll Accessibility (Hands-free active)"
-        } else {
-            "• Auto-Scroll Accessibility (Optional for Long Shot)"
-        }
 
         val clips = prefs.getClips()
         vaultAdapter.submitList(clips)
