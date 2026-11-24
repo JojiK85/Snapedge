@@ -4,8 +4,10 @@ import android.annotation.SuppressLint
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.PixelFormat
+import android.net.Uri
 import android.os.Build
 import android.text.method.ScrollingMovementMethod
 import android.view.Gravity
@@ -18,6 +20,7 @@ import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
 import com.snapedge.app.R
+import com.snapedge.app.ocr.SmartTextAnalyzer
 
 /**
  * Draggable always-on-top mini window allowing users to keep extracted text or cropped images
@@ -37,6 +40,7 @@ class PinnedFloatingWindow(
         rootView = view
 
         val dragHeader = view.findViewById<View>(R.id.pinnedDragHeader)
+        val btnOpenLink = view.findViewById<ImageButton>(R.id.btnPinnedOpenLink)
         val btnCopy = view.findViewById<ImageButton>(R.id.btnPinnedCopy)
         val btnClose = view.findViewById<ImageButton>(R.id.btnPinnedClose)
         val ivPinned = view.findViewById<ImageView>(R.id.ivPinnedImage)
@@ -53,6 +57,23 @@ class PinnedFloatingWindow(
         } else {
             tvPinned.visibility = View.GONE
             btnCopy.visibility = View.GONE
+        }
+
+        val url = SmartTextAnalyzer.extractFirstUrl(text)
+        if (url != null) {
+            btnOpenLink.visibility = View.VISIBLE
+            btnOpenLink.setOnClickListener {
+                val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                cm.setPrimaryClip(ClipData.newPlainText("Pinned Link", url))
+                Toast.makeText(context, "Copied & opening link", Toast.LENGTH_SHORT).show()
+                runCatching {
+                    context.startActivity(
+                        Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        }
+                    )
+                }
+            }
         }
 
         btnCopy.setOnClickListener {

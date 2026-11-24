@@ -25,9 +25,20 @@
             android:textStyle="bold" />
 
         <ImageButton
+            android:id="@+id/btnPinnedOpenLink"
+            android:layout_width="26dp"
+            android:layout_height="26dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Open link"
+            android:padding="4dp"
+            android:src="@drawable/ic_open_browser"
+            android:visibility="gone" />
+
+        <ImageButton
             android:id="@+id/btnPinnedCopy"
             android:layout_width="26dp"
             android:layout_height="26dp"
+            android:layout_marginStart="4dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="Copy"
             android:padding="4dp"

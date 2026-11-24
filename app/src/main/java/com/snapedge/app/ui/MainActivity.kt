@@ -139,6 +139,14 @@ class MainActivity : AppCompatActivity() {
                     val wm = getSystemService(Context.WINDOW_SERVICE) as WindowManager
                     PinnedFloatingWindow(this, wm, clip.text, null).show()
                 }
+            },
+            onOpenUrlClick = { url ->
+                val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                cm.setPrimaryClip(ClipData.newPlainText("SnapEdge Link", url))
+                Toast.makeText(this, "Copied & opening link", Toast.LENGTH_SHORT).show()
+                runCatching {
+                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                }
             }
         )
         rvVault.layoutManager = LinearLayoutManager(this)

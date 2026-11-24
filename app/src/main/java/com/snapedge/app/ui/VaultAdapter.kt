@@ -9,10 +9,12 @@ import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.snapedge.app.R
 import com.snapedge.app.model.SavedClip
+import com.snapedge.app.ocr.SmartTextAnalyzer
 
 class VaultAdapter(
     private val onCopyClick: (SavedClip) -> Unit,
-    private val onPinClick: (SavedClip) -> Unit
+    private val onPinClick: (SavedClip) -> Unit,
+    private val onOpenUrlClick: (String) -> Unit
 ) : RecyclerView.Adapter<VaultAdapter.ClipViewHolder>() {
 
     private val items = mutableListOf<SavedClip>()
@@ -37,6 +39,7 @@ class VaultAdapter(
     inner class ClipViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         private val tvMeta: TextView = itemView.findViewById(R.id.tvClipMeta)
         private val tvContent: TextView = itemView.findViewById(R.id.tvClipContent)
+        private val btnOpenLink: ImageButton = itemView.findViewById(R.id.btnVaultOpenLink)
         private val btnCopy: ImageButton = itemView.findViewById(R.id.btnVaultCopy)
         private val btnPin: ImageButton = itemView.findViewById(R.id.btnVaultPin)
 
@@ -48,6 +51,14 @@ class VaultAdapter(
             )
             tvMeta.text = "${clip.source} • $relTime"
             tvContent.text = clip.text
+
+            val url = SmartTextAnalyzer.extractFirstUrl(clip.text)
+            if (url != null) {
+                btnOpenLink.visibility = View.VISIBLE
+                btnOpenLink.setOnClickListener { onOpenUrlClick(url) }
+            } else {
+                btnOpenLink.visibility = View.GONE
+            }
 
             btnCopy.setOnClickListener { onCopyClick(clip) }
             btnPin.setOnClickListener { onPinClick(clip) }

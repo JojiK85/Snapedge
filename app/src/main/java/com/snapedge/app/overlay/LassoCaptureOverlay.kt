@@ -21,6 +21,7 @@ import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.core.content.FileProvider
+import androidx.core.widget.doAfterTextChanged
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
 import com.google.android.material.chip.Chip
@@ -75,6 +76,7 @@ class LassoCaptureOverlay(
 
         val btnDismissResult = view.findViewById<ImageButton>(R.id.btnDismissResult)
         val btnCopy = view.findViewById<MaterialButton>(R.id.btnCopyExtracted)
+        val btnOpenBrowser = view.findViewById<MaterialButton>(R.id.btnOpenBrowser)
         val btnPin = view.findViewById<MaterialButton>(R.id.btnPinExtracted)
         val btnSearch = view.findViewById<MaterialButton>(R.id.btnSearchWeb)
         val btnEditCrop = view.findViewById<MaterialButton>(R.id.btnEditCropImage)
@@ -123,15 +125,39 @@ class LassoCaptureOverlay(
             )
         }
 
+        etExtracted.doAfterTextChanged { editable ->
+            val detectedUrl = SmartTextAnalyzer.extractFirstUrl(editable?.toString().orEmpty())
+            btnOpenBrowser.visibility = if (detectedUrl != null) View.VISIBLE else View.GONE
+            btnCopy.text = "Copy"
+        }
+
         btnCopy.setOnClickListener {
             val text = etExtracted.text.toString().trim()
             if (text.isNotEmpty()) {
                 copyToClipboard(text)
                 prefs.addClip(text, "Circle OCR")
-                Toast.makeText(context, "Copied & saved to Vault", Toast.LENGTH_SHORT).show()
-                dismiss()
+                val detectedUrl = SmartTextAnalyzer.extractFirstUrl(text)
+                if (detectedUrl != null) {
+                    btnCopy.text = "Copied ✓"
+                    tvSummary.text = "Copied! Tap Copy & Open Link to visit in browser"
+                    Toast.makeText(context, "Link copied! Tap Open Link to browse", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(context, "Copied & saved to Vault", Toast.LENGTH_SHORT).show()
+                    dismiss()
+                }
             } else {
                 Toast.makeText(context, "No text to copy", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        btnOpenBrowser.setOnClickListener {
+            val text = etExtracted.text.toString().trim()
+            val url = SmartTextAnalyzer.extractFirstUrl(text)
+            if (url != null) {
+                copyToClipboard(url)
+                prefs.addClip(url, "Link OCR")
+                Toast.makeText(context, "Copied & opening in browser", Toast.LENGTH_SHORT).show()
+                openUrl(url)
             }
         }
 
@@ -148,12 +174,15 @@ class LassoCaptureOverlay(
         btnSearch.setOnClickListener {
             val query = etExtracted.text.toString().trim()
             if (query.isNotEmpty()) {
-                val url = "https://www.google.com/search?q=${Uri.encode(query)}"
-                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                val directUrl = SmartTextAnalyzer.extractFirstUrl(query)
+                if (directUrl != null) {
+                    copyToClipboard(directUrl)
+                    prefs.addClip(directUrl, "Link OCR")
+                    openUrl(directUrl)
+                } else {
+                    val url = "https://www.google.com/search?q=${Uri.encode(query)}"
+                    openUrl(url)
                 }
-                context.startActivity(intent)
-                dismiss()
             }
         }
 
@@ -289,7 +318,12 @@ class LassoCaptureOverlay(
                             openUrl(entity.value)
                         }
                     }
-                    SmartEntityType.URL -> openUrl(entity.value)
+                    SmartEntityType.URL -> {
+                        copyToClipboard(entity.value)
+                        prefs.addClip(entity.value, "Link OCR")
+                        Toast.makeText(context, "Copied & opening link", Toast.LENGTH_SHORT).show()
+                        openUrl(entity.value)
+                    }
                     SmartEntityType.PHONE -> {
                         val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:${entity.value}")).apply {
                             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)

@@ -95,12 +95,14 @@ object SmartTextAnalyzer {
             }
         }
 
-        // URLs
+        // URLs (avoid matching email domains as standalone URLs)
         val urlMatcher = Patterns.WEB_URL.matcher(text)
-        if (urlMatcher.find()) {
+        while (urlMatcher.find()) {
+            val start = urlMatcher.start()
+            if (start > 0 && text[start - 1] == '@') continue
             val rawUrl = urlMatcher.group()
-            val normalized = if (rawUrl.startsWith("http", ignoreCase = true)) rawUrl else "https://$rawUrl"
-            entities.add(SmartEntity(SmartEntityType.URL, "Open Link", normalized))
+            val normalized = normalizeUrl(rawUrl)
+            entities.add(SmartEntity(SmartEntityType.URL, "Open ${rawUrl.take(22)}", normalized))
         }
 
         // Emails
@@ -135,6 +137,28 @@ object SmartTextAnalyzer {
             }
         }
         return rects
+    }
+
+    fun extractFirstUrl(text: String): String? {
+        if (text.isBlank()) return null
+        val matcher = Patterns.WEB_URL.matcher(text)
+        while (matcher.find()) {
+            val start = matcher.start()
+            if (start > 0 && text[start - 1] == '@') continue
+            return normalizeUrl(matcher.group())
+        }
+        return null
+    }
+
+    private fun normalizeUrl(rawUrl: String): String {
+        val trimmed = rawUrl.trim()
+        return if (trimmed.startsWith("http://", ignoreCase = true) ||
+            trimmed.startsWith("https://", ignoreCase = true)
+        ) {
+            trimmed
+        } else {
+            "https://$trimmed"
+        }
     }
 
     private suspend fun <T> Task<T>.await(): T = suspendCancellableCoroutine { cont ->
